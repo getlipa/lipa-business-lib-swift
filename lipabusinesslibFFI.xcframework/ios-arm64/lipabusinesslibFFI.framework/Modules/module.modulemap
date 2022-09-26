@@ -1,0 +1,6 @@
+framework module lipabusinesslibFFI {
+  umbrella header "lipabusinesslibFFI-umbrella.h"
+
+  export *
+  module * { export * }
+}
