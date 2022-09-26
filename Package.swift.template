@@ -1,0 +1,25 @@
+// swift-tools-version:5.3
+
+import PackageDescription
+import Foundation
+
+let package = Package(
+        name: "LipaBusinessLib",
+        platforms: [
+            .iOS(.v13)
+        ],
+        products: [
+            .library(
+                name: "LipaBusinessLib",
+                targets: ["LipaBusinessLib"]),
+        ],
+        targets: [
+            .binaryTarget(
+            name: "lipabusinesslibFFI",
+            url: "https://github.com/getlipa/lipa-business-lib-swift/releases/download/to_replace_release_version/lipabusinesslibFFI.xcframework.zip",
+            checksum: "to_replace_zip_checksum"),
+            .target(
+                    name: "LipaBusinessLib",
+                    dependencies: ["lipabusinesslibFFI"]),
+        ]
+)
