@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_26b3_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_ccf8_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_26b3_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_ccf8_rustbuffer_free(self, $0) }
     }
 }
 
@@ -281,19 +281,6 @@ private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) 
 // Public interface members begin here.
 
 
-fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
-    typealias FfiType = UInt8
-    typealias SwiftType = UInt8
-
-    static func read(from buf: Reader) throws -> UInt8 {
-        return try lift(buf.readInt())
-    }
-
-    static func write(_ value: UInt8, into buf: Writer) {
-        buf.writeInt(lower(value))
-    }
-}
-
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -347,7 +334,7 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 
 public protocol WalletProtocol {
-    func getBalance(watchDescriptor: String) throws -> Balance
+    func getBalance() throws -> Balance
     
 }
 
@@ -365,24 +352,23 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_26b3_Wallet_new(
+    lipabusinesslib_ccf8_Wallet_new(
         FfiConverterTypeConfig.lower(config), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_26b3_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_ccf8_Wallet_object_free(pointer, $0) }
     }
 
     
 
     
-    public func getBalance(watchDescriptor: String) throws -> Balance {
+    public func getBalance() throws -> Balance {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_26b3_Wallet_get_balance(self.pointer, 
-        FfiConverterString.lower(watchDescriptor), $0
+    lipabusinesslib_ccf8_Wallet_get_balance(self.pointer, $0
     )
 }
         )
@@ -487,12 +473,14 @@ fileprivate struct FfiConverterTypeBalance: FfiConverterRustBuffer {
 public struct Config {
     public var electrumUrl: String
     public var network: Network
+    public var watchDescriptor: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(electrumUrl: String, network: Network) {
+    public init(electrumUrl: String, network: Network, watchDescriptor: String) {
         self.electrumUrl = electrumUrl
         self.network = network
+        self.watchDescriptor = watchDescriptor
     }
 }
 
@@ -505,12 +493,16 @@ extension Config: Equatable, Hashable {
         if lhs.network != rhs.network {
             return false
         }
+        if lhs.watchDescriptor != rhs.watchDescriptor {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(electrumUrl)
         hasher.combine(network)
+        hasher.combine(watchDescriptor)
     }
 }
 
@@ -519,13 +511,15 @@ fileprivate struct FfiConverterTypeConfig: FfiConverterRustBuffer {
     fileprivate static func read(from buf: Reader) throws -> Config {
         return try Config(
             electrumUrl: FfiConverterString.read(from: buf), 
-            network: FfiConverterTypeNetwork.read(from: buf)
+            network: FfiConverterTypeNetwork.read(from: buf), 
+            watchDescriptor: FfiConverterString.read(from: buf)
         )
     }
 
     fileprivate static func write(_ value: Config, into buf: Writer) {
         FfiConverterString.write(value.electrumUrl, into: buf)
         FfiConverterTypeNetwork.write(value.network, into: buf)
+        FfiConverterString.write(value.watchDescriptor, into: buf)
     }
 }
 
@@ -577,12 +571,12 @@ fileprivate struct FfiConverterTypeDescriptors: FfiConverterRustBuffer {
 
 
 public struct KeyPair {
-    public var secretKey: [UInt8]
-    public var publicKey: [UInt8]
+    public var secretKey: String
+    public var publicKey: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(secretKey: [UInt8], publicKey: [UInt8]) {
+    public init(secretKey: String, publicKey: String) {
         self.secretKey = secretKey
         self.publicKey = publicKey
     }
@@ -610,14 +604,14 @@ extension KeyPair: Equatable, Hashable {
 fileprivate struct FfiConverterTypeKeyPair: FfiConverterRustBuffer {
     fileprivate static func read(from buf: Reader) throws -> KeyPair {
         return try KeyPair(
-            secretKey: FfiConverterSequenceUInt8.read(from: buf), 
-            publicKey: FfiConverterSequenceUInt8.read(from: buf)
+            secretKey: FfiConverterString.read(from: buf), 
+            publicKey: FfiConverterString.read(from: buf)
         )
     }
 
     fileprivate static func write(_ value: KeyPair, into buf: Writer) {
-        FfiConverterSequenceUInt8.write(value.secretKey, into: buf)
-        FfiConverterSequenceUInt8.write(value.publicKey, into: buf)
+        FfiConverterString.write(value.secretKey, into: buf)
+        FfiConverterString.write(value.publicKey, into: buf)
     }
 }
 
@@ -1112,28 +1106,6 @@ extension WalletError: Equatable, Hashable {}
 
 extension WalletError: Error { }
 
-fileprivate struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
-    typealias SwiftType = [UInt8]
-
-    static func write(_ value: [UInt8], into buf: Writer) {
-        let len = Int32(value.count)
-        buf.writeInt(len)
-        for item in value {
-            FfiConverterUInt8.write(item, into: buf)
-        }
-    }
-
-    static func read(from buf: Reader) throws -> [UInt8] {
-        let len: Int32 = try buf.readInt()
-        var seq = [UInt8]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterUInt8.read(from: buf))
-        }
-        return seq
-    }
-}
-
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -1161,7 +1133,7 @@ public func initNativeLoggerOnce(minLevel: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_26b3_init_native_logger_once(
+    lipabusinesslib_ccf8_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(minLevel), $0)
 }
 }
@@ -1173,7 +1145,7 @@ public func generateMnemonic() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
     
-    lipabusinesslib_26b3_generate_mnemonic($0)
+    lipabusinesslib_ccf8_generate_mnemonic($0)
 }
     )
 }
@@ -1186,24 +1158,9 @@ public func deriveKeys(network: Network, mnemonicString: [String]) throws -> Lip
     
     rustCallWithError(FfiConverterTypeKeyDerivationError.self) {
     
-    lipabusinesslib_26b3_derive_keys(
+    lipabusinesslib_ccf8_derive_keys(
         FfiConverterTypeNetwork.lower(network), 
         FfiConverterSequenceString.lower(mnemonicString), $0)
-}
-    )
-}
-
-
-
-public func signMessage(message: String, secretKey: [UInt8]) throws -> String {
-    return try FfiConverterString.lift(
-        try
-    
-    rustCallWithError(FfiConverterTypeSigningError.self) {
-    
-    lipabusinesslib_26b3_sign_message(
-        FfiConverterString.lower(message), 
-        FfiConverterSequenceUInt8.lower(secretKey), $0)
 }
     )
 }
@@ -1216,7 +1173,22 @@ public func generateKeypair() throws -> KeyPair {
     
     rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
     
-    lipabusinesslib_26b3_generate_keypair($0)
+    lipabusinesslib_ccf8_generate_keypair($0)
+}
+    )
+}
+
+
+
+public func signMessage(message: String, secretKey: String) throws -> String {
+    return try FfiConverterString.lift(
+        try
+    
+    rustCallWithError(FfiConverterTypeSigningError.self) {
+    
+    lipabusinesslib_ccf8_sign_message(
+        FfiConverterString.lower(message), 
+        FfiConverterString.lower(secretKey), $0)
 }
     )
 }
