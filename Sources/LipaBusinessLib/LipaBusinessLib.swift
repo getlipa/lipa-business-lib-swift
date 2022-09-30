@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_ccf8_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_9d7a_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_ccf8_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_9d7a_rustbuffer_free(self, $0) }
     }
 }
 
@@ -352,13 +352,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_ccf8_Wallet_new(
+    lipabusinesslib_9d7a_Wallet_new(
         FfiConverterTypeConfig.lower(config), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_ccf8_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_9d7a_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -368,7 +368,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ccf8_Wallet_get_balance(self.pointer, $0
+    lipabusinesslib_9d7a_Wallet_get_balance(self.pointer, $0
     )
 }
         )
@@ -474,13 +474,15 @@ public struct Config {
     public var electrumUrl: String
     public var network: Network
     public var watchDescriptor: String
+    public var dbPath: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(electrumUrl: String, network: Network, watchDescriptor: String) {
+    public init(electrumUrl: String, network: Network, watchDescriptor: String, dbPath: String) {
         self.electrumUrl = electrumUrl
         self.network = network
         self.watchDescriptor = watchDescriptor
+        self.dbPath = dbPath
     }
 }
 
@@ -496,6 +498,9 @@ extension Config: Equatable, Hashable {
         if lhs.watchDescriptor != rhs.watchDescriptor {
             return false
         }
+        if lhs.dbPath != rhs.dbPath {
+            return false
+        }
         return true
     }
 
@@ -503,6 +508,7 @@ extension Config: Equatable, Hashable {
         hasher.combine(electrumUrl)
         hasher.combine(network)
         hasher.combine(watchDescriptor)
+        hasher.combine(dbPath)
     }
 }
 
@@ -512,7 +518,8 @@ fileprivate struct FfiConverterTypeConfig: FfiConverterRustBuffer {
         return try Config(
             electrumUrl: FfiConverterString.read(from: buf), 
             network: FfiConverterTypeNetwork.read(from: buf), 
-            watchDescriptor: FfiConverterString.read(from: buf)
+            watchDescriptor: FfiConverterString.read(from: buf), 
+            dbPath: FfiConverterString.read(from: buf)
         )
     }
 
@@ -520,6 +527,7 @@ fileprivate struct FfiConverterTypeConfig: FfiConverterRustBuffer {
         FfiConverterString.write(value.electrumUrl, into: buf)
         FfiConverterTypeNetwork.write(value.network, into: buf)
         FfiConverterString.write(value.watchDescriptor, into: buf)
+        FfiConverterString.write(value.dbPath, into: buf)
     }
 }
 
@@ -1133,7 +1141,7 @@ public func initNativeLoggerOnce(minLevel: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_ccf8_init_native_logger_once(
+    lipabusinesslib_9d7a_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(minLevel), $0)
 }
 }
@@ -1145,7 +1153,7 @@ public func generateMnemonic() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
     
-    lipabusinesslib_ccf8_generate_mnemonic($0)
+    lipabusinesslib_9d7a_generate_mnemonic($0)
 }
     )
 }
@@ -1158,7 +1166,7 @@ public func deriveKeys(network: Network, mnemonicString: [String]) throws -> Lip
     
     rustCallWithError(FfiConverterTypeKeyDerivationError.self) {
     
-    lipabusinesslib_ccf8_derive_keys(
+    lipabusinesslib_9d7a_derive_keys(
         FfiConverterTypeNetwork.lower(network), 
         FfiConverterSequenceString.lower(mnemonicString), $0)
 }
@@ -1173,7 +1181,7 @@ public func generateKeypair() throws -> KeyPair {
     
     rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
     
-    lipabusinesslib_ccf8_generate_keypair($0)
+    lipabusinesslib_9d7a_generate_keypair($0)
 }
     )
 }
@@ -1186,7 +1194,7 @@ public func signMessage(message: String, secretKey: String) throws -> String {
     
     rustCallWithError(FfiConverterTypeSigningError.self) {
     
-    lipabusinesslib_ccf8_sign_message(
+    lipabusinesslib_9d7a_sign_message(
         FfiConverterString.lower(message), 
         FfiConverterString.lower(secretKey), $0)
 }
