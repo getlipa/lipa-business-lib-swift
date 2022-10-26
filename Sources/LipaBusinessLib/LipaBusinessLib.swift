@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_882b_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_dba6_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_882b_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_dba6_rustbuffer_free(self, $0) }
     }
 }
 
@@ -352,13 +352,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_882b_Wallet_new(
+    lipabusinesslib_dba6_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_882b_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_dba6_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -368,7 +368,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_882b_Wallet_sync_balance(self.pointer, $0
+    lipabusinesslib_dba6_Wallet_sync_balance(self.pointer, $0
     )
 }
         )
@@ -624,22 +624,22 @@ fileprivate struct FfiConverterTypeKeyPair: FfiConverterRustBuffer {
 }
 
 
-public struct LipaKeys {
-    public var `authKeypair`: KeyPair
+public struct WalletKeys {
+    public var `walletKeypair`: KeyPair
     public var `walletDescriptors`: Descriptors
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`authKeypair`: KeyPair, `walletDescriptors`: Descriptors) {
-        self.`authKeypair` = `authKeypair`
+    public init(`walletKeypair`: KeyPair, `walletDescriptors`: Descriptors) {
+        self.`walletKeypair` = `walletKeypair`
         self.`walletDescriptors` = `walletDescriptors`
     }
 }
 
 
-extension LipaKeys: Equatable, Hashable {
-    public static func ==(lhs: LipaKeys, rhs: LipaKeys) -> Bool {
-        if lhs.`authKeypair` != rhs.`authKeypair` {
+extension WalletKeys: Equatable, Hashable {
+    public static func ==(lhs: WalletKeys, rhs: WalletKeys) -> Bool {
+        if lhs.`walletKeypair` != rhs.`walletKeypair` {
             return false
         }
         if lhs.`walletDescriptors` != rhs.`walletDescriptors` {
@@ -649,22 +649,22 @@ extension LipaKeys: Equatable, Hashable {
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(`authKeypair`)
+        hasher.combine(`walletKeypair`)
         hasher.combine(`walletDescriptors`)
     }
 }
 
 
-fileprivate struct FfiConverterTypeLipaKeys: FfiConverterRustBuffer {
-    fileprivate static func read(from buf: Reader) throws -> LipaKeys {
-        return try LipaKeys(
-            `authKeypair`: FfiConverterTypeKeyPair.read(from: buf), 
+fileprivate struct FfiConverterTypeWalletKeys: FfiConverterRustBuffer {
+    fileprivate static func read(from buf: Reader) throws -> WalletKeys {
+        return try WalletKeys(
+            `walletKeypair`: FfiConverterTypeKeyPair.read(from: buf), 
             `walletDescriptors`: FfiConverterTypeDescriptors.read(from: buf)
         )
     }
 
-    fileprivate static func write(_ value: LipaKeys, into buf: Writer) {
-        FfiConverterTypeKeyPair.write(value.`authKeypair`, into: buf)
+    fileprivate static func write(_ value: WalletKeys, into buf: Writer) {
+        FfiConverterTypeKeyPair.write(value.`walletKeypair`, into: buf)
         FfiConverterTypeDescriptors.write(value.`walletDescriptors`, into: buf)
     }
 }
@@ -1161,7 +1161,7 @@ public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_882b_init_native_logger_once(
+    lipabusinesslib_dba6_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1173,20 +1173,20 @@ public func `generateMnemonic`() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
     
-    lipabusinesslib_882b_generate_mnemonic($0)
+    lipabusinesslib_dba6_generate_mnemonic($0)
 }
     )
 }
 
 
 
-public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws -> LipaKeys {
-    return try FfiConverterTypeLipaKeys.lift(
+public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws -> WalletKeys {
+    return try FfiConverterTypeWalletKeys.lift(
         try
     
     rustCallWithError(FfiConverterTypeKeyDerivationError.self) {
     
-    lipabusinesslib_882b_derive_keys(
+    lipabusinesslib_dba6_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1195,15 +1195,15 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
 
 
 
-public func `signMessage`(`message`: String, `secretKey`: String) throws -> String {
+public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     return try FfiConverterString.lift(
         try
     
     rustCallWithError(FfiConverterTypeSigningError.self) {
     
-    lipabusinesslib_882b_sign_message(
+    lipabusinesslib_dba6_sign(
         FfiConverterString.lower(`message`), 
-        FfiConverterString.lower(`secretKey`), $0)
+        FfiConverterString.lower(`privateKey`), $0)
 }
     )
 }
@@ -1216,7 +1216,7 @@ public func `generateKeypair`() throws -> KeyPair {
     
     rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
     
-    lipabusinesslib_882b_generate_keypair($0)
+    lipabusinesslib_dba6_generate_keypair($0)
 }
     )
 }
