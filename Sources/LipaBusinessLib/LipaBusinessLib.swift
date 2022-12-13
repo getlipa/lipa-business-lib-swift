@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_dba6_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_ba09_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_dba6_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_ba09_rustbuffer_free(self, $0) }
     }
 }
 
@@ -281,6 +281,32 @@ private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) 
 // Public interface members begin here.
 
 
+fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
+    typealias FfiType = UInt8
+    typealias SwiftType = UInt8
+
+    static func read(from buf: Reader) throws -> UInt8 {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: UInt8, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
+fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
+    typealias FfiType = UInt32
+    typealias SwiftType = UInt32
+
+    static func read(from buf: Reader) throws -> UInt32 {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -335,6 +361,10 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 public protocol WalletProtocol {
     func `syncBalance`() throws -> Balance
+    func `validateAddr`(`addr`: String)  -> AddressValidationResult
+    func `prepareDrainTx`(`addr`: String) throws -> Tx
+    func `signAndBroadcastTx`(`tx`: Tx, `spendDescriptor`: String) throws
+    func `getTxStatus`(`txid`: String) throws -> TxStatus
     
 }
 
@@ -350,15 +380,15 @@ public class Wallet: WalletProtocol {
     public convenience init(`config`: Config) throws {
         self.init(unsafeFromRawPointer: try
     
-    rustCallWithError(FfiConverterTypeWalletError.self) {
+    rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_dba6_Wallet_new(
+    lipabusinesslib_ba09_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_dba6_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_ba09_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -367,8 +397,48 @@ public class Wallet: WalletProtocol {
     public func `syncBalance`() throws -> Balance {
         return try FfiConverterTypeBalance.lift(
             try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_dba6_Wallet_sync_balance(self.pointer, $0
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_ba09_Wallet_sync_balance(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `validateAddr`(`addr`: String)  -> AddressValidationResult {
+        return try! FfiConverterTypeAddressValidationResult.lift(
+            try!
+    rustCall() {
+    
+    lipabusinesslib_ba09_Wallet_validate_addr(self.pointer, 
+        FfiConverterString.lower(`addr`), $0
+    )
+}
+        )
+    }
+    public func `prepareDrainTx`(`addr`: String) throws -> Tx {
+        return try FfiConverterTypeTx.lift(
+            try
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_ba09_Wallet_prepare_drain_tx(self.pointer, 
+        FfiConverterString.lower(`addr`), $0
+    )
+}
+        )
+    }
+    public func `signAndBroadcastTx`(`tx`: Tx, `spendDescriptor`: String) throws {
+        try
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_ba09_Wallet_sign_and_broadcast_tx(self.pointer, 
+        FfiConverterTypeTx.lower(`tx`), 
+        FfiConverterString.lower(`spendDescriptor`), $0
+    )
+}
+    }
+    public func `getTxStatus`(`txid`: String) throws -> TxStatus {
+        return try FfiConverterTypeTxStatus.lift(
+            try
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_ba09_Wallet_get_tx_status(self.pointer, 
+        FfiConverterString.lower(`txid`), $0
     )
 }
         )
@@ -624,6 +694,68 @@ fileprivate struct FfiConverterTypeKeyPair: FfiConverterRustBuffer {
 }
 
 
+public struct Tx {
+    public var `id`: String
+    public var `blob`: [UInt8]
+    public var `onChainFeeSat`: UInt64
+    public var `outputSat`: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`id`: String, `blob`: [UInt8], `onChainFeeSat`: UInt64, `outputSat`: UInt64) {
+        self.`id` = `id`
+        self.`blob` = `blob`
+        self.`onChainFeeSat` = `onChainFeeSat`
+        self.`outputSat` = `outputSat`
+    }
+}
+
+
+extension Tx: Equatable, Hashable {
+    public static func ==(lhs: Tx, rhs: Tx) -> Bool {
+        if lhs.`id` != rhs.`id` {
+            return false
+        }
+        if lhs.`blob` != rhs.`blob` {
+            return false
+        }
+        if lhs.`onChainFeeSat` != rhs.`onChainFeeSat` {
+            return false
+        }
+        if lhs.`outputSat` != rhs.`outputSat` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`id`)
+        hasher.combine(`blob`)
+        hasher.combine(`onChainFeeSat`)
+        hasher.combine(`outputSat`)
+    }
+}
+
+
+fileprivate struct FfiConverterTypeTx: FfiConverterRustBuffer {
+    fileprivate static func read(from buf: Reader) throws -> Tx {
+        return try Tx(
+            `id`: FfiConverterString.read(from: buf), 
+            `blob`: FfiConverterSequenceUInt8.read(from: buf), 
+            `onChainFeeSat`: FfiConverterUInt64.read(from: buf), 
+            `outputSat`: FfiConverterUInt64.read(from: buf)
+        )
+    }
+
+    fileprivate static func write(_ value: Tx, into buf: Writer) {
+        FfiConverterString.write(value.`id`, into: buf)
+        FfiConverterSequenceUInt8.write(value.`blob`, into: buf)
+        FfiConverterUInt64.write(value.`onChainFeeSat`, into: buf)
+        FfiConverterUInt64.write(value.`outputSat`, into: buf)
+    }
+}
+
+
 public struct WalletKeys {
     public var `walletKeypair`: KeyPair
     public var `walletDescriptors`: Descriptors
@@ -668,6 +800,48 @@ fileprivate struct FfiConverterTypeWalletKeys: FfiConverterRustBuffer {
         FfiConverterTypeDescriptors.write(value.`walletDescriptors`, into: buf)
     }
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum AddressValidationResult {
+    
+    case `valid`
+    case `invalid`
+}
+
+fileprivate struct FfiConverterTypeAddressValidationResult: FfiConverterRustBuffer {
+    typealias SwiftType = AddressValidationResult
+
+    static func read(from buf: Reader) throws -> AddressValidationResult {
+        let variant: Int32 = try buf.readInt()
+        switch variant {
+        
+        case 1: return .`valid`
+        
+        case 2: return .`invalid`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    static func write(_ value: AddressValidationResult, into buf: Writer) {
+        switch value {
+        
+        
+        case .`valid`:
+            buf.writeInt(Int32(1))
+        
+        
+        case .`invalid`:
+            buf.writeInt(Int32(2))
+        
+        }
+    }
+}
+
+
+extension AddressValidationResult: Equatable, Hashable {}
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -788,83 +962,93 @@ fileprivate struct FfiConverterTypeNetwork: FfiConverterRustBuffer {
 extension Network: Equatable, Hashable {}
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum TxStatus {
+    
+    case `notInMempool`
+    case `inMempool`
+    case `confirmed`(`numberOfBlocks`: UInt32)
+}
 
-public enum KeyDerivationError {
+fileprivate struct FfiConverterTypeTxStatus: FfiConverterRustBuffer {
+    typealias SwiftType = TxStatus
+
+    static func read(from buf: Reader) throws -> TxStatus {
+        let variant: Int32 = try buf.readInt()
+        switch variant {
+        
+        case 1: return .`notInMempool`
+        
+        case 2: return .`inMempool`
+        
+        case 3: return .`confirmed`(
+            `numberOfBlocks`: try FfiConverterUInt32.read(from: buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    static func write(_ value: TxStatus, into buf: Writer) {
+        switch value {
+        
+        
+        case .`notInMempool`:
+            buf.writeInt(Int32(1))
+        
+        
+        case .`inMempool`:
+            buf.writeInt(Int32(2))
+        
+        
+        case let .`confirmed`(`numberOfBlocks`):
+            buf.writeInt(Int32(3))
+            FfiConverterUInt32.write(`numberOfBlocks`, into: buf)
+            
+        }
+    }
+}
+
+
+extension TxStatus: Equatable, Hashable {}
+
+
+
+public enum LipaError {
 
     
     
     // Simple error enums only carry a message
-    case Derivation(message: String)
+    case InvalidInput(message: String)
     
     // Simple error enums only carry a message
-    case DerivationPathParse(message: String)
+    case RuntimeError(message: String)
     
     // Simple error enums only carry a message
-    case DescKeyFromXPriv(message: String)
-    
-    // Simple error enums only carry a message
-    case DescPubKeyFromDescSecretKey(message: String)
-    
-    // Simple error enums only carry a message
-    case DescSecretKeyFromDescKey(message: String)
-    
-    // Simple error enums only carry a message
-    case ExtendedKeyFromMnemonic(message: String)
-    
-    // Simple error enums only carry a message
-    case ExtendedKeyFromXPriv(message: String)
-    
-    // Simple error enums only carry a message
-    case MnemonicParsing(message: String)
-    
-    // Simple error enums only carry a message
-    case XPrivFromExtendedKey(message: String)
+    case PermanentFailure(message: String)
     
 }
 
-fileprivate struct FfiConverterTypeKeyDerivationError: FfiConverterRustBuffer {
-    typealias SwiftType = KeyDerivationError
+fileprivate struct FfiConverterTypeLipaError: FfiConverterRustBuffer {
+    typealias SwiftType = LipaError
 
-    static func read(from buf: Reader) throws -> KeyDerivationError {
+    static func read(from buf: Reader) throws -> LipaError {
         let variant: Int32 = try buf.readInt()
         switch variant {
 
         
 
         
-        case 1: return .Derivation(
+        case 1: return .InvalidInput(
             message: try FfiConverterString.read(from: buf)
         )
         
-        case 2: return .DerivationPathParse(
+        case 2: return .RuntimeError(
             message: try FfiConverterString.read(from: buf)
         )
         
-        case 3: return .DescKeyFromXPriv(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 4: return .DescPubKeyFromDescSecretKey(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 5: return .DescSecretKeyFromDescKey(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 6: return .ExtendedKeyFromMnemonic(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 7: return .ExtendedKeyFromXPriv(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 8: return .MnemonicParsing(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 9: return .XPrivFromExtendedKey(
+        case 3: return .PermanentFailure(
             message: try FfiConverterString.read(from: buf)
         )
         
@@ -873,39 +1057,21 @@ fileprivate struct FfiConverterTypeKeyDerivationError: FfiConverterRustBuffer {
         }
     }
 
-    static func write(_ value: KeyDerivationError, into buf: Writer) {
+    static func write(_ value: LipaError, into buf: Writer) {
         switch value {
 
         
 
         
-        case let .Derivation(message):
+        case let .InvalidInput(message):
             buf.writeInt(Int32(1))
             FfiConverterString.write(message, into: buf)
-        case let .DerivationPathParse(message):
+        case let .RuntimeError(message):
             buf.writeInt(Int32(2))
             FfiConverterString.write(message, into: buf)
-        case let .DescKeyFromXPriv(message):
+        case let .PermanentFailure(message):
             buf.writeInt(Int32(3))
             FfiConverterString.write(message, into: buf)
-        case let .DescPubKeyFromDescSecretKey(message):
-            buf.writeInt(Int32(4))
-            FfiConverterString.write(message, into: buf)
-        case let .DescSecretKeyFromDescKey(message):
-            buf.writeInt(Int32(5))
-            FfiConverterString.write(message, into: buf)
-        case let .ExtendedKeyFromMnemonic(message):
-            buf.writeInt(Int32(6))
-            FfiConverterString.write(message, into: buf)
-        case let .ExtendedKeyFromXPriv(message):
-            buf.writeInt(Int32(7))
-            FfiConverterString.write(message, into: buf)
-        case let .MnemonicParsing(message):
-            buf.writeInt(Int32(8))
-            FfiConverterString.write(message, into: buf)
-        case let .XPrivFromExtendedKey(message):
-            buf.writeInt(Int32(9))
-            FfiConverterString.write(message, into: buf)
 
         
         }
@@ -913,226 +1079,31 @@ fileprivate struct FfiConverterTypeKeyDerivationError: FfiConverterRustBuffer {
 }
 
 
-extension KeyDerivationError: Equatable, Hashable {}
+extension LipaError: Equatable, Hashable {}
 
-extension KeyDerivationError: Error { }
+extension LipaError: Error { }
 
+fileprivate struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
+    typealias SwiftType = [UInt8]
 
-public enum KeyGenerationError {
-
-    
-    
-    // Simple error enums only carry a message
-    case EntropyGeneration(message: String)
-    
-    // Simple error enums only carry a message
-    case MnemonicFromEntropy(message: String)
-    
-}
-
-fileprivate struct FfiConverterTypeKeyGenerationError: FfiConverterRustBuffer {
-    typealias SwiftType = KeyGenerationError
-
-    static func read(from buf: Reader) throws -> KeyGenerationError {
-        let variant: Int32 = try buf.readInt()
-        switch variant {
-
-        
-
-        
-        case 1: return .EntropyGeneration(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 2: return .MnemonicFromEntropy(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-
-        default: throw UniffiInternalError.unexpectedEnumCase
+    static func write(_ value: [UInt8], into buf: Writer) {
+        let len = Int32(value.count)
+        buf.writeInt(len)
+        for item in value {
+            FfiConverterUInt8.write(item, into: buf)
         }
     }
 
-    static func write(_ value: KeyGenerationError, into buf: Writer) {
-        switch value {
-
-        
-
-        
-        case let .EntropyGeneration(message):
-            buf.writeInt(Int32(1))
-            FfiConverterString.write(message, into: buf)
-        case let .MnemonicFromEntropy(message):
-            buf.writeInt(Int32(2))
-            FfiConverterString.write(message, into: buf)
-
-        
+    static func read(from buf: Reader) throws -> [UInt8] {
+        let len: Int32 = try buf.readInt()
+        var seq = [UInt8]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt8.read(from: buf))
         }
+        return seq
     }
 }
-
-
-extension KeyGenerationError: Equatable, Hashable {}
-
-extension KeyGenerationError: Error { }
-
-
-public enum SigningError {
-
-    
-    
-    // Simple error enums only carry a message
-    case MessageHashing(message: String)
-    
-    // Simple error enums only carry a message
-    case SecretKeyParse(message: String)
-    
-}
-
-fileprivate struct FfiConverterTypeSigningError: FfiConverterRustBuffer {
-    typealias SwiftType = SigningError
-
-    static func read(from buf: Reader) throws -> SigningError {
-        let variant: Int32 = try buf.readInt()
-        switch variant {
-
-        
-
-        
-        case 1: return .MessageHashing(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 2: return .SecretKeyParse(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    static func write(_ value: SigningError, into buf: Writer) {
-        switch value {
-
-        
-
-        
-        case let .MessageHashing(message):
-            buf.writeInt(Int32(1))
-            FfiConverterString.write(message, into: buf)
-        case let .SecretKeyParse(message):
-            buf.writeInt(Int32(2))
-            FfiConverterString.write(message, into: buf)
-
-        
-        }
-    }
-}
-
-
-extension SigningError: Equatable, Hashable {}
-
-extension SigningError: Error { }
-
-
-public enum WalletError {
-
-    
-    
-    // Simple error enums only carry a message
-    case BdkWallet(message: String)
-    
-    // Simple error enums only carry a message
-    case ChainBackendClient(message: String)
-    
-    // Simple error enums only carry a message
-    case ChainSync(message: String)
-    
-    // Simple error enums only carry a message
-    case GetBalance(message: String)
-    
-    // Simple error enums only carry a message
-    case OpenDatabase(message: String)
-    
-    // Simple error enums only carry a message
-    case OpenDatabaseTree(message: String)
-    
-}
-
-fileprivate struct FfiConverterTypeWalletError: FfiConverterRustBuffer {
-    typealias SwiftType = WalletError
-
-    static func read(from buf: Reader) throws -> WalletError {
-        let variant: Int32 = try buf.readInt()
-        switch variant {
-
-        
-
-        
-        case 1: return .BdkWallet(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 2: return .ChainBackendClient(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 3: return .ChainSync(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 4: return .GetBalance(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 5: return .OpenDatabase(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-        case 6: return .OpenDatabaseTree(
-            message: try FfiConverterString.read(from: buf)
-        )
-        
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    static func write(_ value: WalletError, into buf: Writer) {
-        switch value {
-
-        
-
-        
-        case let .BdkWallet(message):
-            buf.writeInt(Int32(1))
-            FfiConverterString.write(message, into: buf)
-        case let .ChainBackendClient(message):
-            buf.writeInt(Int32(2))
-            FfiConverterString.write(message, into: buf)
-        case let .ChainSync(message):
-            buf.writeInt(Int32(3))
-            FfiConverterString.write(message, into: buf)
-        case let .GetBalance(message):
-            buf.writeInt(Int32(4))
-            FfiConverterString.write(message, into: buf)
-        case let .OpenDatabase(message):
-            buf.writeInt(Int32(5))
-            FfiConverterString.write(message, into: buf)
-        case let .OpenDatabaseTree(message):
-            buf.writeInt(Int32(6))
-            FfiConverterString.write(message, into: buf)
-
-        
-        }
-    }
-}
-
-
-extension WalletError: Equatable, Hashable {}
-
-extension WalletError: Error { }
 
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
@@ -1161,7 +1132,7 @@ public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_dba6_init_native_logger_once(
+    lipabusinesslib_ba09_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1171,9 +1142,9 @@ public func `generateMnemonic`() throws -> [String] {
     return try FfiConverterSequenceString.lift(
         try
     
-    rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
+    rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_dba6_generate_mnemonic($0)
+    lipabusinesslib_ba09_generate_mnemonic($0)
 }
     )
 }
@@ -1184,9 +1155,9 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
     return try FfiConverterTypeWalletKeys.lift(
         try
     
-    rustCallWithError(FfiConverterTypeKeyDerivationError.self) {
+    rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_dba6_derive_keys(
+    lipabusinesslib_ba09_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1199,9 +1170,9 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     return try FfiConverterString.lift(
         try
     
-    rustCallWithError(FfiConverterTypeSigningError.self) {
+    rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_dba6_sign(
+    lipabusinesslib_ba09_sign(
         FfiConverterString.lower(`message`), 
         FfiConverterString.lower(`privateKey`), $0)
 }
@@ -1210,13 +1181,13 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
 
 
 
-public func `generateKeypair`() throws -> KeyPair {
-    return try FfiConverterTypeKeyPair.lift(
-        try
+public func `generateKeypair`()  -> KeyPair {
+    return try! FfiConverterTypeKeyPair.lift(
+        try!
     
-    rustCallWithError(FfiConverterTypeKeyGenerationError.self) {
+    rustCall() {
     
-    lipabusinesslib_dba6_generate_keypair($0)
+    lipabusinesslib_ba09_generate_keypair($0)
 }
     )
 }
