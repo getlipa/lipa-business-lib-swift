@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_eabb_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_f90d_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_eabb_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_f90d_rustbuffer_free(self, $0) }
     }
 }
 
@@ -361,6 +361,7 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 public protocol WalletProtocol {
     func `syncBalance`() throws -> Balance
+    func `getAddr`() throws -> String
     func `validateAddr`(`addr`: String)  -> AddressValidationResult
     func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32) throws -> Tx
     func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws
@@ -382,13 +383,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_eabb_Wallet_new(
+    lipabusinesslib_f90d_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_eabb_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_f90d_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -398,7 +399,16 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_eabb_Wallet_sync_balance(self.pointer, $0
+    lipabusinesslib_f90d_Wallet_sync_balance(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `getAddr`() throws -> String {
+        return try FfiConverterString.lift(
+            try
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_f90d_Wallet_get_addr(self.pointer, $0
     )
 }
         )
@@ -408,7 +418,7 @@ public class Wallet: WalletProtocol {
             try!
     rustCall() {
     
-    lipabusinesslib_eabb_Wallet_validate_addr(self.pointer, 
+    lipabusinesslib_f90d_Wallet_validate_addr(self.pointer, 
         FfiConverterString.lower(`addr`), $0
     )
 }
@@ -418,7 +428,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTx.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_eabb_Wallet_prepare_drain_tx(self.pointer, 
+    lipabusinesslib_f90d_Wallet_prepare_drain_tx(self.pointer, 
         FfiConverterString.lower(`addr`), 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
@@ -428,7 +438,7 @@ public class Wallet: WalletProtocol {
     public func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws {
         try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_eabb_Wallet_sign_and_broadcast_tx(self.pointer, 
+    lipabusinesslib_f90d_Wallet_sign_and_broadcast_tx(self.pointer, 
         FfiConverterSequenceUInt8.lower(`txBlob`), 
         FfiConverterString.lower(`spendDescriptor`), $0
     )
@@ -438,7 +448,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTxStatus.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_eabb_Wallet_get_tx_status(self.pointer, 
+    lipabusinesslib_f90d_Wallet_get_tx_status(self.pointer, 
         FfiConverterString.lower(`txid`), $0
     )
 }
@@ -1186,7 +1196,7 @@ public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_eabb_init_native_logger_once(
+    lipabusinesslib_f90d_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1198,7 +1208,7 @@ public func `generateMnemonic`() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_eabb_generate_mnemonic($0)
+    lipabusinesslib_f90d_generate_mnemonic($0)
 }
     )
 }
@@ -1211,7 +1221,7 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_eabb_derive_keys(
+    lipabusinesslib_f90d_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1226,7 +1236,7 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_eabb_sign(
+    lipabusinesslib_f90d_sign(
         FfiConverterString.lower(`message`), 
         FfiConverterString.lower(`privateKey`), $0)
 }
@@ -1241,7 +1251,7 @@ public func `generateKeypair`()  -> KeyPair {
     
     rustCall() {
     
-    lipabusinesslib_eabb_generate_keypair($0)
+    lipabusinesslib_f90d_generate_keypair($0)
 }
     )
 }
