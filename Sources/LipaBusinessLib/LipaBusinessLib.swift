@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_f90d_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_8414_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_f90d_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_8414_rustbuffer_free(self, $0) }
     }
 }
 
@@ -320,6 +320,27 @@ fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     }
 }
 
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    static func read(from buf: Reader) throws -> Bool {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: Bool, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -358,6 +379,41 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+fileprivate struct FfiConverterTimestamp: FfiConverterRustBuffer {
+    typealias SwiftType = Date
+
+    static func read(from buf: Reader) throws -> Date {
+        let seconds: Int64 = try buf.readInt()
+        let nanoseconds: UInt32 = try buf.readInt()
+        if seconds >= 0 {
+            let delta = Double(seconds) + (Double(nanoseconds) / 1.0e9)
+            return Date.init(timeIntervalSince1970: delta)
+        } else {
+            let delta = Double(seconds) - (Double(nanoseconds) / 1.0e9)
+            return Date.init(timeIntervalSince1970: delta)
+        }
+    }
+
+    static func write(_ value: Date, into buf: Writer) {
+        var delta = value.timeIntervalSince1970
+        var sign: Int64 = 1
+        if delta < 0 {
+            // The nanoseconds portion of the epoch offset must always be
+            // positive, to simplify the calculation we will use the absolute
+            // value of the offset.
+            sign = -1
+            delta = -delta
+        }
+        if delta.rounded(.down) > Double(Int64.max) {
+            fatalError("Timestamp overflow, exceeds max bounds supported by Uniffi")
+        }
+        let seconds = Int64(delta)
+        let nanoseconds = UInt32((delta - Double(seconds)) * 1.0e9)
+        buf.writeInt(sign * seconds)
+        buf.writeInt(nanoseconds)
+    }
+}
+
 
 public protocol WalletProtocol {
     func `syncBalance`() throws -> Balance
@@ -366,6 +422,8 @@ public protocol WalletProtocol {
     func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32) throws -> Tx
     func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws
     func `getTxStatus`(`txid`: String) throws -> TxStatus
+    func `getSpendingTxs`() throws -> [TxDetails]
+    func `isDrainTxAffordable`(`confirmInBlocks`: UInt32) throws -> Bool
     
 }
 
@@ -383,13 +441,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_f90d_Wallet_new(
+    lipabusinesslib_8414_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_f90d_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_8414_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -399,7 +457,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_f90d_Wallet_sync_balance(self.pointer, $0
+    lipabusinesslib_8414_Wallet_sync_balance(self.pointer, $0
     )
 }
         )
@@ -408,7 +466,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_f90d_Wallet_get_addr(self.pointer, $0
+    lipabusinesslib_8414_Wallet_get_addr(self.pointer, $0
     )
 }
         )
@@ -418,7 +476,7 @@ public class Wallet: WalletProtocol {
             try!
     rustCall() {
     
-    lipabusinesslib_f90d_Wallet_validate_addr(self.pointer, 
+    lipabusinesslib_8414_Wallet_validate_addr(self.pointer, 
         FfiConverterString.lower(`addr`), $0
     )
 }
@@ -428,7 +486,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTx.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_f90d_Wallet_prepare_drain_tx(self.pointer, 
+    lipabusinesslib_8414_Wallet_prepare_drain_tx(self.pointer, 
         FfiConverterString.lower(`addr`), 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
@@ -438,7 +496,7 @@ public class Wallet: WalletProtocol {
     public func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws {
         try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_f90d_Wallet_sign_and_broadcast_tx(self.pointer, 
+    lipabusinesslib_8414_Wallet_sign_and_broadcast_tx(self.pointer, 
         FfiConverterSequenceUInt8.lower(`txBlob`), 
         FfiConverterString.lower(`spendDescriptor`), $0
     )
@@ -448,8 +506,27 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTxStatus.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_f90d_Wallet_get_tx_status(self.pointer, 
+    lipabusinesslib_8414_Wallet_get_tx_status(self.pointer, 
         FfiConverterString.lower(`txid`), $0
+    )
+}
+        )
+    }
+    public func `getSpendingTxs`() throws -> [TxDetails] {
+        return try FfiConverterSequenceTypeTxDetails.lift(
+            try
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_8414_Wallet_get_spending_txs(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `isDrainTxAffordable`(`confirmInBlocks`: UInt32) throws -> Bool {
+        return try FfiConverterBool.lift(
+            try
+    rustCallWithError(FfiConverterTypeLipaError.self) {
+    lipabusinesslib_8414_Wallet_is_drain_tx_affordable(self.pointer, 
+        FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
 }
         )
@@ -767,6 +844,76 @@ fileprivate struct FfiConverterTypeTx: FfiConverterRustBuffer {
 }
 
 
+public struct TxDetails {
+    public var `id`: String
+    public var `outputAddress`: String
+    public var `outputSat`: UInt64
+    public var `onChainFeeSat`: UInt64
+    public var `status`: TxStatus
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`id`: String, `outputAddress`: String, `outputSat`: UInt64, `onChainFeeSat`: UInt64, `status`: TxStatus) {
+        self.`id` = `id`
+        self.`outputAddress` = `outputAddress`
+        self.`outputSat` = `outputSat`
+        self.`onChainFeeSat` = `onChainFeeSat`
+        self.`status` = `status`
+    }
+}
+
+
+extension TxDetails: Equatable, Hashable {
+    public static func ==(lhs: TxDetails, rhs: TxDetails) -> Bool {
+        if lhs.`id` != rhs.`id` {
+            return false
+        }
+        if lhs.`outputAddress` != rhs.`outputAddress` {
+            return false
+        }
+        if lhs.`outputSat` != rhs.`outputSat` {
+            return false
+        }
+        if lhs.`onChainFeeSat` != rhs.`onChainFeeSat` {
+            return false
+        }
+        if lhs.`status` != rhs.`status` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`id`)
+        hasher.combine(`outputAddress`)
+        hasher.combine(`outputSat`)
+        hasher.combine(`onChainFeeSat`)
+        hasher.combine(`status`)
+    }
+}
+
+
+fileprivate struct FfiConverterTypeTxDetails: FfiConverterRustBuffer {
+    fileprivate static func read(from buf: Reader) throws -> TxDetails {
+        return try TxDetails(
+            `id`: FfiConverterString.read(from: buf), 
+            `outputAddress`: FfiConverterString.read(from: buf), 
+            `outputSat`: FfiConverterUInt64.read(from: buf), 
+            `onChainFeeSat`: FfiConverterUInt64.read(from: buf), 
+            `status`: FfiConverterTypeTxStatus.read(from: buf)
+        )
+    }
+
+    fileprivate static func write(_ value: TxDetails, into buf: Writer) {
+        FfiConverterString.write(value.`id`, into: buf)
+        FfiConverterString.write(value.`outputAddress`, into: buf)
+        FfiConverterUInt64.write(value.`outputSat`, into: buf)
+        FfiConverterUInt64.write(value.`onChainFeeSat`, into: buf)
+        FfiConverterTypeTxStatus.write(value.`status`, into: buf)
+    }
+}
+
+
 public struct WalletKeys {
     public var `walletKeypair`: KeyPair
     public var `walletDescriptors`: Descriptors
@@ -1035,7 +1182,7 @@ public enum TxStatus {
     
     case `notInMempool`
     case `inMempool`
-    case `confirmed`(`numberOfBlocks`: UInt32)
+    case `confirmed`(`numberOfBlocks`: UInt32, `confirmedAt`: Date)
 }
 
 fileprivate struct FfiConverterTypeTxStatus: FfiConverterRustBuffer {
@@ -1050,7 +1197,8 @@ fileprivate struct FfiConverterTypeTxStatus: FfiConverterRustBuffer {
         case 2: return .`inMempool`
         
         case 3: return .`confirmed`(
-            `numberOfBlocks`: try FfiConverterUInt32.read(from: buf)
+            `numberOfBlocks`: try FfiConverterUInt32.read(from: buf), 
+            `confirmedAt`: try FfiConverterTimestamp.read(from: buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1069,9 +1217,10 @@ fileprivate struct FfiConverterTypeTxStatus: FfiConverterRustBuffer {
             buf.writeInt(Int32(2))
         
         
-        case let .`confirmed`(`numberOfBlocks`):
+        case let .`confirmed`(`numberOfBlocks`,`confirmedAt`):
             buf.writeInt(Int32(3))
             FfiConverterUInt32.write(`numberOfBlocks`, into: buf)
+            FfiConverterTimestamp.write(`confirmedAt`, into: buf)
             
         }
     }
@@ -1191,12 +1340,34 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterSequenceTypeTxDetails: FfiConverterRustBuffer {
+    typealias SwiftType = [TxDetails]
+
+    static func write(_ value: [TxDetails], into buf: Writer) {
+        let len = Int32(value.count)
+        buf.writeInt(len)
+        for item in value {
+            FfiConverterTypeTxDetails.write(item, into: buf)
+        }
+    }
+
+    static func read(from buf: Reader) throws -> [TxDetails] {
+        let len: Int32 = try buf.readInt()
+        var seq = [TxDetails]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTxDetails.read(from: buf))
+        }
+        return seq
+    }
+}
+
 public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     try!
     
     rustCall() {
     
-    lipabusinesslib_f90d_init_native_logger_once(
+    lipabusinesslib_8414_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1208,7 +1379,7 @@ public func `generateMnemonic`() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_f90d_generate_mnemonic($0)
+    lipabusinesslib_8414_generate_mnemonic($0)
 }
     )
 }
@@ -1221,7 +1392,7 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_f90d_derive_keys(
+    lipabusinesslib_8414_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1236,7 +1407,7 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_f90d_sign(
+    lipabusinesslib_8414_sign(
         FfiConverterString.lower(`message`), 
         FfiConverterString.lower(`privateKey`), $0)
 }
@@ -1251,7 +1422,7 @@ public func `generateKeypair`()  -> KeyPair {
     
     rustCall() {
     
-    lipabusinesslib_f90d_generate_keypair($0)
+    lipabusinesslib_8414_generate_keypair($0)
 }
     )
 }
