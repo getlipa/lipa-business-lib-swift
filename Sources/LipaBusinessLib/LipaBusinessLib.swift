@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_8414_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_8e24_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_8414_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_8e24_rustbuffer_free(self, $0) }
     }
 }
 
@@ -420,7 +420,7 @@ public protocol WalletProtocol {
     func `getAddr`() throws -> String
     func `validateAddr`(`addr`: String)  -> AddressValidationResult
     func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32) throws -> Tx
-    func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws
+    func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws -> TxDetails
     func `getTxStatus`(`txid`: String) throws -> TxStatus
     func `getSpendingTxs`() throws -> [TxDetails]
     func `isDrainTxAffordable`(`confirmInBlocks`: UInt32) throws -> Bool
@@ -441,13 +441,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_8414_Wallet_new(
+    lipabusinesslib_8e24_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_8414_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_8e24_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -457,7 +457,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_sync_balance(self.pointer, $0
+    lipabusinesslib_8e24_Wallet_sync_balance(self.pointer, $0
     )
 }
         )
@@ -466,7 +466,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_get_addr(self.pointer, $0
+    lipabusinesslib_8e24_Wallet_get_addr(self.pointer, $0
     )
 }
         )
@@ -476,7 +476,7 @@ public class Wallet: WalletProtocol {
             try!
     rustCall() {
     
-    lipabusinesslib_8414_Wallet_validate_addr(self.pointer, 
+    lipabusinesslib_8e24_Wallet_validate_addr(self.pointer, 
         FfiConverterString.lower(`addr`), $0
     )
 }
@@ -486,27 +486,29 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTx.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_prepare_drain_tx(self.pointer, 
+    lipabusinesslib_8e24_Wallet_prepare_drain_tx(self.pointer, 
         FfiConverterString.lower(`addr`), 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
 }
         )
     }
-    public func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws {
-        try
+    public func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws -> TxDetails {
+        return try FfiConverterTypeTxDetails.lift(
+            try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_sign_and_broadcast_tx(self.pointer, 
+    lipabusinesslib_8e24_Wallet_sign_and_broadcast_tx(self.pointer, 
         FfiConverterSequenceUInt8.lower(`txBlob`), 
         FfiConverterString.lower(`spendDescriptor`), $0
     )
 }
+        )
     }
     public func `getTxStatus`(`txid`: String) throws -> TxStatus {
         return try FfiConverterTypeTxStatus.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_get_tx_status(self.pointer, 
+    lipabusinesslib_8e24_Wallet_get_tx_status(self.pointer, 
         FfiConverterString.lower(`txid`), $0
     )
 }
@@ -516,7 +518,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterSequenceTypeTxDetails.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_get_spending_txs(self.pointer, $0
+    lipabusinesslib_8e24_Wallet_get_spending_txs(self.pointer, $0
     )
 }
         )
@@ -525,7 +527,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterBool.lift(
             try
     rustCallWithError(FfiConverterTypeLipaError.self) {
-    lipabusinesslib_8414_Wallet_is_drain_tx_affordable(self.pointer, 
+    lipabusinesslib_8e24_Wallet_is_drain_tx_affordable(self.pointer, 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
 }
@@ -1367,7 +1369,7 @@ public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_8414_init_native_logger_once(
+    lipabusinesslib_8e24_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1379,7 +1381,7 @@ public func `generateMnemonic`() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_8414_generate_mnemonic($0)
+    lipabusinesslib_8e24_generate_mnemonic($0)
 }
     )
 }
@@ -1392,7 +1394,7 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_8414_derive_keys(
+    lipabusinesslib_8e24_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1407,7 +1409,7 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     
     rustCallWithError(FfiConverterTypeLipaError.self) {
     
-    lipabusinesslib_8414_sign(
+    lipabusinesslib_8e24_sign(
         FfiConverterString.lower(`message`), 
         FfiConverterString.lower(`privateKey`), $0)
 }
@@ -1422,7 +1424,7 @@ public func `generateKeypair`()  -> KeyPair {
     
     rustCall() {
     
-    lipabusinesslib_8414_generate_keypair($0)
+    lipabusinesslib_8e24_generate_keypair($0)
 }
     )
 }
