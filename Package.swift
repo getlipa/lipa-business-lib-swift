@@ -16,8 +16,8 @@ let package = Package(
         targets: [
             .binaryTarget(
             name: "lipabusinesslibFFI",
-            url: "https://github.com/getlipa/lipa-business-lib-swift/releases/download/v0.1.0-alpha.19/lipabusinesslibFFI.xcframework.zip",
-            checksum: "7f17c3a11384692cbf28476d377366782f2fd472995241c8ec38e6d154554b9a"),
+            url: "https://github.com/getlipa/lipa-business-lib-swift/releases/download/v0.1.0-alpha.19.badger/lipabusinesslibFFI.xcframework.zip",
+            checksum: "8a463758f4bb4177415497c43df12cd321b8be3c37264395a47abd91d9f57f5e"),
             .target(
                     name: "LipaBusinessLib",
                     dependencies: ["lipabusinesslibFFI"]),
