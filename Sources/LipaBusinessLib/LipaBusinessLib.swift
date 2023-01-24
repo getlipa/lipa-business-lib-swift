@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_d2db_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_6fff_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_d2db_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_6fff_rustbuffer_free(self, $0) }
     }
 }
 
@@ -416,6 +416,7 @@ fileprivate struct FfiConverterTimestamp: FfiConverterRustBuffer {
 
 public protocol AuthProtocol {
     func `queryToken`() throws -> String
+    func `getWalletPubkeyId`()  -> String?
     
 }
 
@@ -433,7 +434,7 @@ public class Auth: AuthProtocol {
     
     rustCallWithError(FfiConverterTypeAuthError.self) {
     
-    lipabusinesslib_d2db_Auth_new(
+    lipabusinesslib_6fff_Auth_new(
         FfiConverterString.lower(`backendUrl`), 
         FfiConverterTypeAuthLevel.lower(`authLevel`), 
         FfiConverterTypeKeyPair.lower(`walletKeypair`), 
@@ -442,7 +443,7 @@ public class Auth: AuthProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_d2db_Auth_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_6fff_Auth_object_free(pointer, $0) }
     }
 
     
@@ -452,7 +453,17 @@ public class Auth: AuthProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeAuthError.self) {
-    lipabusinesslib_d2db_Auth_query_token(self.pointer, $0
+    lipabusinesslib_6fff_Auth_query_token(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `getWalletPubkeyId`()  -> String? {
+        return try! FfiConverterOptionString.lift(
+            try!
+    rustCall() {
+    
+    lipabusinesslib_6fff_Auth_get_wallet_pubkey_id(self.pointer, $0
     )
 }
         )
@@ -519,13 +530,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeLblError.self) {
     
-    lipabusinesslib_d2db_Wallet_new(
+    lipabusinesslib_6fff_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_d2db_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_6fff_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -534,7 +545,7 @@ public class Wallet: WalletProtocol {
     public func `sync`() throws {
         try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_sync(self.pointer, $0
+    lipabusinesslib_6fff_Wallet_sync(self.pointer, $0
     )
 }
     }
@@ -542,7 +553,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_get_balance(self.pointer, $0
+    lipabusinesslib_6fff_Wallet_get_balance(self.pointer, $0
     )
 }
         )
@@ -551,7 +562,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_get_addr(self.pointer, $0
+    lipabusinesslib_6fff_Wallet_get_addr(self.pointer, $0
     )
 }
         )
@@ -561,7 +572,7 @@ public class Wallet: WalletProtocol {
             try!
     rustCall() {
     
-    lipabusinesslib_d2db_Wallet_validate_addr(self.pointer, 
+    lipabusinesslib_6fff_Wallet_validate_addr(self.pointer, 
         FfiConverterString.lower(`addr`), $0
     )
 }
@@ -571,7 +582,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTx.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_prepare_drain_tx(self.pointer, 
+    lipabusinesslib_6fff_Wallet_prepare_drain_tx(self.pointer, 
         FfiConverterString.lower(`addr`), 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
@@ -582,7 +593,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTxDetails.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_sign_and_broadcast_tx(self.pointer, 
+    lipabusinesslib_6fff_Wallet_sign_and_broadcast_tx(self.pointer, 
         FfiConverterSequenceUInt8.lower(`txBlob`), 
         FfiConverterString.lower(`spendDescriptor`), $0
     )
@@ -593,7 +604,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTxStatus.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_get_tx_status(self.pointer, 
+    lipabusinesslib_6fff_Wallet_get_tx_status(self.pointer, 
         FfiConverterString.lower(`txid`), $0
     )
 }
@@ -603,7 +614,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterSequenceTypeTxDetails.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_get_spending_txs(self.pointer, $0
+    lipabusinesslib_6fff_Wallet_get_spending_txs(self.pointer, $0
     )
 }
         )
@@ -612,7 +623,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterBool.lift(
             try
     rustCallWithError(FfiConverterTypeLblError.self) {
-    lipabusinesslib_d2db_Wallet_is_drain_tx_affordable(self.pointer, 
+    lipabusinesslib_6fff_Wallet_is_drain_tx_affordable(self.pointer, 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
 }
@@ -1092,7 +1103,7 @@ extension AddressValidationResult: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum AuthLevel {
     
-    case `basic`
+    case `pseudonymous`
     case `owner`
     case `employee`
 }
@@ -1104,7 +1115,7 @@ public struct FfiConverterTypeAuthLevel: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .`basic`
+        case 1: return .`pseudonymous`
         
         case 2: return .`owner`
         
@@ -1118,7 +1129,7 @@ public struct FfiConverterTypeAuthLevel: FfiConverterRustBuffer {
         switch value {
         
         
-        case .`basic`:
+        case .`pseudonymous`:
             writeInt(&buf, Int32(1))
         
         
@@ -1554,6 +1565,27 @@ extension LblError: Equatable, Hashable {}
 
 extension LblError: Error { }
 
+fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
+    typealias SwiftType = String?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterString.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
     typealias SwiftType = [UInt8]
 
@@ -1625,7 +1657,7 @@ public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_d2db_init_native_logger_once(
+    lipabusinesslib_6fff_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1637,7 +1669,7 @@ public func `generateMnemonic`() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeLblError.self) {
     
-    lipabusinesslib_d2db_generate_mnemonic($0)
+    lipabusinesslib_6fff_generate_mnemonic($0)
 }
     )
 }
@@ -1650,7 +1682,7 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
     
     rustCallWithError(FfiConverterTypeLblError.self) {
     
-    lipabusinesslib_d2db_derive_keys(
+    lipabusinesslib_6fff_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1665,7 +1697,7 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     
     rustCallWithError(FfiConverterTypeLblError.self) {
     
-    lipabusinesslib_d2db_sign(
+    lipabusinesslib_6fff_sign(
         FfiConverterString.lower(`message`), 
         FfiConverterString.lower(`privateKey`), $0)
 }
@@ -1680,7 +1712,7 @@ public func `generateKeypair`()  -> KeyPair {
     
     rustCall() {
     
-    lipabusinesslib_d2db_generate_keypair($0)
+    lipabusinesslib_6fff_generate_keypair($0)
 }
     )
 }
