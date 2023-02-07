@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_265f_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_309_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_265f_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_309_rustbuffer_free(self, $0) }
     }
 }
 
@@ -40,7 +40,7 @@ fileprivate extension ForeignBytes {
 // values of that type in a buffer.
 
 // Helper classes/extensions that don't change.
-// Someday, this will be in a libray of its own.
+// Someday, this will be in a library of its own.
 
 fileprivate extension Data {
     init(rustBuffer: RustBuffer) {
@@ -434,7 +434,7 @@ public class Auth: AuthProtocol {
     
     rustCallWithError(FfiConverterTypeAuthError.self) {
     
-    lipabusinesslib_265f_Auth_new(
+    lipabusinesslib_309_Auth_new(
         FfiConverterString.lower(`backendUrl`), 
         FfiConverterTypeAuthLevel.lower(`authLevel`), 
         FfiConverterTypeKeyPair.lower(`walletKeypair`), 
@@ -443,7 +443,7 @@ public class Auth: AuthProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_265f_Auth_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_309_Auth_object_free(pointer, $0) }
     }
 
     
@@ -453,7 +453,7 @@ public class Auth: AuthProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeAuthError.self) {
-    lipabusinesslib_265f_Auth_query_token(self.pointer, $0
+    lipabusinesslib_309_Auth_query_token(self.pointer, $0
     )
 }
         )
@@ -463,7 +463,7 @@ public class Auth: AuthProtocol {
             try!
     rustCall() {
     
-    lipabusinesslib_265f_Auth_get_wallet_pubkey_id(self.pointer, $0
+    lipabusinesslib_309_Auth_get_wallet_pubkey_id(self.pointer, $0
     )
 }
         )
@@ -530,13 +530,13 @@ public class Wallet: WalletProtocol {
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_265f_Wallet_new(
+    lipabusinesslib_309_Wallet_new(
         FfiConverterTypeConfig.lower(`config`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_265f_Wallet_object_free(pointer, $0) }
+        try! rustCall { ffi_lipabusinesslib_309_Wallet_object_free(pointer, $0) }
     }
 
     
@@ -545,7 +545,7 @@ public class Wallet: WalletProtocol {
     public func `sync`() throws {
         try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_sync(self.pointer, $0
+    lipabusinesslib_309_Wallet_sync(self.pointer, $0
     )
 }
     }
@@ -553,7 +553,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeBalance.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_get_balance(self.pointer, $0
+    lipabusinesslib_309_Wallet_get_balance(self.pointer, $0
     )
 }
         )
@@ -562,7 +562,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_get_addr(self.pointer, $0
+    lipabusinesslib_309_Wallet_get_addr(self.pointer, $0
     )
 }
         )
@@ -571,7 +571,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterString.lift(
             try
     rustCallWithError(FfiConverterTypeAddressParsingError.self) {
-    lipabusinesslib_265f_Wallet_parse_address(self.pointer, 
+    lipabusinesslib_309_Wallet_parse_address(self.pointer, 
         FfiConverterString.lower(`address`), $0
     )
 }
@@ -581,7 +581,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTx.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_prepare_drain_tx(self.pointer, 
+    lipabusinesslib_309_Wallet_prepare_drain_tx(self.pointer, 
         FfiConverterString.lower(`addr`), 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
@@ -592,7 +592,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTxDetails.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_sign_and_broadcast_tx(self.pointer, 
+    lipabusinesslib_309_Wallet_sign_and_broadcast_tx(self.pointer, 
         FfiConverterSequenceUInt8.lower(`txBlob`), 
         FfiConverterString.lower(`spendDescriptor`), $0
     )
@@ -603,7 +603,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterTypeTxStatus.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_get_tx_status(self.pointer, 
+    lipabusinesslib_309_Wallet_get_tx_status(self.pointer, 
         FfiConverterString.lower(`txid`), $0
     )
 }
@@ -613,7 +613,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterSequenceTypeTxDetails.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_get_spending_txs(self.pointer, $0
+    lipabusinesslib_309_Wallet_get_spending_txs(self.pointer, $0
     )
 }
         )
@@ -622,7 +622,7 @@ public class Wallet: WalletProtocol {
         return try FfiConverterBool.lift(
             try
     rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_265f_Wallet_is_drain_tx_affordable(self.pointer, 
+    lipabusinesslib_309_Wallet_is_drain_tx_affordable(self.pointer, 
         FfiConverterUInt32.lower(`confirmInBlocks`), $0
     )
 }
@@ -725,6 +725,15 @@ public struct FfiConverterTypeBalance: FfiConverterRustBuffer {
 }
 
 
+public func FfiConverterTypeBalance_lift(_ buf: RustBuffer) throws -> Balance {
+    return try FfiConverterTypeBalance.lift(buf)
+}
+
+public func FfiConverterTypeBalance_lower(_ value: Balance) -> RustBuffer {
+    return FfiConverterTypeBalance.lower(value)
+}
+
+
 public struct Config {
     public var `electrumUrl`: String
     public var `walletDbPath`: String
@@ -787,6 +796,15 @@ public struct FfiConverterTypeConfig: FfiConverterRustBuffer {
 }
 
 
+public func FfiConverterTypeConfig_lift(_ buf: RustBuffer) throws -> Config {
+    return try FfiConverterTypeConfig.lift(buf)
+}
+
+public func FfiConverterTypeConfig_lower(_ value: Config) -> RustBuffer {
+    return FfiConverterTypeConfig.lower(value)
+}
+
+
 public struct Descriptors {
     public var `spendDescriptor`: String
     public var `watchDescriptor`: String
@@ -833,6 +851,15 @@ public struct FfiConverterTypeDescriptors: FfiConverterRustBuffer {
 }
 
 
+public func FfiConverterTypeDescriptors_lift(_ buf: RustBuffer) throws -> Descriptors {
+    return try FfiConverterTypeDescriptors.lift(buf)
+}
+
+public func FfiConverterTypeDescriptors_lower(_ value: Descriptors) -> RustBuffer {
+    return FfiConverterTypeDescriptors.lower(value)
+}
+
+
 public struct KeyPair {
     public var `secretKey`: String
     public var `publicKey`: String
@@ -876,6 +903,15 @@ public struct FfiConverterTypeKeyPair: FfiConverterRustBuffer {
         FfiConverterString.write(value.`secretKey`, into: &buf)
         FfiConverterString.write(value.`publicKey`, into: &buf)
     }
+}
+
+
+public func FfiConverterTypeKeyPair_lift(_ buf: RustBuffer) throws -> KeyPair {
+    return try FfiConverterTypeKeyPair.lift(buf)
+}
+
+public func FfiConverterTypeKeyPair_lower(_ value: KeyPair) -> RustBuffer {
+    return FfiConverterTypeKeyPair.lower(value)
 }
 
 
@@ -938,6 +974,15 @@ public struct FfiConverterTypeTx: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.`onChainFeeSat`, into: &buf)
         FfiConverterUInt64.write(value.`outputSat`, into: &buf)
     }
+}
+
+
+public func FfiConverterTypeTx_lift(_ buf: RustBuffer) throws -> Tx {
+    return try FfiConverterTypeTx.lift(buf)
+}
+
+public func FfiConverterTypeTx_lower(_ value: Tx) -> RustBuffer {
+    return FfiConverterTypeTx.lower(value)
 }
 
 
@@ -1011,6 +1056,15 @@ public struct FfiConverterTypeTxDetails: FfiConverterRustBuffer {
 }
 
 
+public func FfiConverterTypeTxDetails_lift(_ buf: RustBuffer) throws -> TxDetails {
+    return try FfiConverterTypeTxDetails.lift(buf)
+}
+
+public func FfiConverterTypeTxDetails_lower(_ value: TxDetails) -> RustBuffer {
+    return FfiConverterTypeTxDetails.lower(value)
+}
+
+
 public struct WalletKeys {
     public var `walletKeypair`: KeyPair
     public var `walletDescriptors`: Descriptors
@@ -1056,6 +1110,15 @@ public struct FfiConverterTypeWalletKeys: FfiConverterRustBuffer {
     }
 }
 
+
+public func FfiConverterTypeWalletKeys_lift(_ buf: RustBuffer) throws -> WalletKeys {
+    return try FfiConverterTypeWalletKeys.lift(buf)
+}
+
+public func FfiConverterTypeWalletKeys_lower(_ value: WalletKeys) -> RustBuffer {
+    return FfiConverterTypeWalletKeys.lower(value)
+}
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum AuthLevel {
@@ -1099,6 +1162,15 @@ public struct FfiConverterTypeAuthLevel: FfiConverterRustBuffer {
         
         }
     }
+}
+
+
+public func FfiConverterTypeAuthLevel_lift(_ buf: RustBuffer) throws -> AuthLevel {
+    return try FfiConverterTypeAuthLevel.lift(buf)
+}
+
+public func FfiConverterTypeAuthLevel_lower(_ value: AuthLevel) -> RustBuffer {
+    return FfiConverterTypeAuthLevel.lower(value)
 }
 
 
@@ -1148,6 +1220,15 @@ public struct FfiConverterTypeAuthRuntimeErrorCode: FfiConverterRustBuffer {
         
         }
     }
+}
+
+
+public func FfiConverterTypeAuthRuntimeErrorCode_lift(_ buf: RustBuffer) throws -> AuthRuntimeErrorCode {
+    return try FfiConverterTypeAuthRuntimeErrorCode.lift(buf)
+}
+
+public func FfiConverterTypeAuthRuntimeErrorCode_lower(_ value: AuthRuntimeErrorCode) -> RustBuffer {
+    return FfiConverterTypeAuthRuntimeErrorCode.lower(value)
 }
 
 
@@ -1214,6 +1295,15 @@ public struct FfiConverterTypeLogLevel: FfiConverterRustBuffer {
 }
 
 
+public func FfiConverterTypeLogLevel_lift(_ buf: RustBuffer) throws -> LogLevel {
+    return try FfiConverterTypeLogLevel.lift(buf)
+}
+
+public func FfiConverterTypeLogLevel_lower(_ value: LogLevel) -> RustBuffer {
+    return FfiConverterTypeLogLevel.lower(value)
+}
+
+
 extension LogLevel: Equatable, Hashable {}
 
 
@@ -1270,6 +1360,15 @@ public struct FfiConverterTypeNetwork: FfiConverterRustBuffer {
 }
 
 
+public func FfiConverterTypeNetwork_lift(_ buf: RustBuffer) throws -> Network {
+    return try FfiConverterTypeNetwork.lift(buf)
+}
+
+public func FfiConverterTypeNetwork_lower(_ value: Network) -> RustBuffer {
+    return FfiConverterTypeNetwork.lower(value)
+}
+
+
 extension Network: Equatable, Hashable {}
 
 
@@ -1321,6 +1420,15 @@ public struct FfiConverterTypeTxStatus: FfiConverterRustBuffer {
             
         }
     }
+}
+
+
+public func FfiConverterTypeTxStatus_lift(_ buf: RustBuffer) throws -> TxStatus {
+    return try FfiConverterTypeTxStatus.lift(buf)
+}
+
+public func FfiConverterTypeTxStatus_lower(_ value: TxStatus) -> RustBuffer {
+    return FfiConverterTypeTxStatus.lower(value)
 }
 
 
@@ -1384,6 +1492,15 @@ public struct FfiConverterTypeWalletRuntimeErrorCode: FfiConverterRustBuffer {
         
         }
     }
+}
+
+
+public func FfiConverterTypeWalletRuntimeErrorCode_lift(_ buf: RustBuffer) throws -> WalletRuntimeErrorCode {
+    return try FfiConverterTypeWalletRuntimeErrorCode.lift(buf)
+}
+
+public func FfiConverterTypeWalletRuntimeErrorCode_lower(_ value: WalletRuntimeErrorCode) -> RustBuffer {
+    return FfiConverterTypeWalletRuntimeErrorCode.lower(value)
 }
 
 
@@ -1668,7 +1785,7 @@ public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
     
     rustCall() {
     
-    lipabusinesslib_265f_init_native_logger_once(
+    lipabusinesslib_309_init_native_logger_once(
         FfiConverterTypeLogLevel.lower(`minLevel`), $0)
 }
 }
@@ -1680,7 +1797,7 @@ public func `generateMnemonic`() throws -> [String] {
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_265f_generate_mnemonic($0)
+    lipabusinesslib_309_generate_mnemonic($0)
 }
     )
 }
@@ -1693,7 +1810,7 @@ public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws 
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_265f_derive_keys(
+    lipabusinesslib_309_derive_keys(
         FfiConverterTypeNetwork.lower(`network`), 
         FfiConverterSequenceString.lower(`mnemonicString`), $0)
 }
@@ -1708,7 +1825,7 @@ public func `sign`(`message`: String, `privateKey`: String) throws -> String {
     
     rustCallWithError(FfiConverterTypeWalletError.self) {
     
-    lipabusinesslib_265f_sign(
+    lipabusinesslib_309_sign(
         FfiConverterString.lower(`message`), 
         FfiConverterString.lower(`privateKey`), $0)
 }
@@ -1723,7 +1840,7 @@ public func `generateKeypair`()  -> KeyPair {
     
     rustCall() {
     
-    lipabusinesslib_265f_generate_keypair($0)
+    lipabusinesslib_309_generate_keypair($0)
 }
     )
 }
