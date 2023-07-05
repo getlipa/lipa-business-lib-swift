@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_lipabusinesslib_ee8f_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_lipabusinesslib_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_lipabusinesslib_ee8f_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_lipabusinesslib_rustbuffer_free(self, $0) }
     }
 }
 
@@ -238,28 +238,41 @@ fileprivate extension RustCallStatus {
 }
 
 private func rustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
-    try makeRustCall(callback, errorHandler: {
-        $0.deallocate()
-        return UniffiInternalError.unexpectedRustCallError
-    })
+    try makeRustCall(callback, errorHandler: nil)
 }
 
-private func rustCallWithError<T, F: FfiConverter>
-    (_ errorFfiConverter: F.Type, _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T
-    where F.SwiftType: Error, F.FfiType == RustBuffer
-    {
-    try makeRustCall(callback, errorHandler: { return try errorFfiConverter.lift($0) })
+private func rustCallWithError<T>(
+    _ errorHandler: @escaping (RustBuffer) throws -> Error,
+    _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
+    try makeRustCall(callback, errorHandler: errorHandler)
 }
 
-private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T, errorHandler: (RustBuffer) throws -> Error) throws -> T {
+private func makeRustCall<T>(
+    _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
+    errorHandler: ((RustBuffer) throws -> Error)?
+) throws -> T {
+    uniffiEnsureInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
+    try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
+    return returnedVal
+}
+
+private func uniffiCheckCallStatus(
+    callStatus: RustCallStatus,
+    errorHandler: ((RustBuffer) throws -> Error)?
+) throws {
     switch callStatus.code {
         case CALL_SUCCESS:
-            return returnedVal
+            return
 
         case CALL_ERROR:
-            throw try errorHandler(callStatus.errorBuf)
+            if let errorHandler = errorHandler {
+                throw try errorHandler(callStatus.errorBuf)
+            } else {
+                callStatus.errorBuf.deallocate()
+                throw UniffiInternalError.unexpectedRustCallError
+            }
 
         case CALL_PANIC:
             // When the rust code sees a panic, it tries to construct a RustBuffer
@@ -279,19 +292,6 @@ private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) 
 
 // Public interface members begin here.
 
-
-fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
-    typealias FfiType = UInt8
-    typealias SwiftType = UInt8
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt8 {
-        return try lift(readInt(&buf))
-    }
-
-    public static func write(_ value: UInt8, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(value))
-    }
-}
 
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
@@ -378,6 +378,21 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(bytes: try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
 fileprivate struct FfiConverterTimestamp: FfiConverterRustBuffer {
     typealias SwiftType = Date
 
@@ -415,8 +430,8 @@ fileprivate struct FfiConverterTimestamp: FfiConverterRustBuffer {
 
 
 public protocol AuthProtocol {
-    func `queryToken`() throws -> String
-    func `getWalletPubkeyId`()  -> String?
+    func `queryToken`()  throws -> String
+    func `getWalletPubkeyId`()   -> String?
     
 }
 
@@ -430,47 +445,45 @@ public class Auth: AuthProtocol {
         self.pointer = pointer
     }
     public convenience init(`backendUrl`: String, `authLevel`: AuthLevel, `walletKeypair`: KeyPair, `authKeypair`: KeyPair) throws {
-        self.init(unsafeFromRawPointer: try
-    
-    rustCallWithError(FfiConverterTypeAuthError.self) {
-    
-    lipabusinesslib_ee8f_Auth_new(
-        FfiConverterString.lower(`backendUrl`), 
-        FfiConverterTypeAuthLevel.lower(`authLevel`), 
-        FfiConverterTypeKeyPair.lower(`walletKeypair`), 
-        FfiConverterTypeKeyPair.lower(`authKeypair`), $0)
+        self.init(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeAuthError.lift) {
+    uniffi_lipabusinesslib_fn_constructor_auth_new(
+        FfiConverterString.lower(`backendUrl`),
+        FfiConverterTypeAuthLevel.lower(`authLevel`),
+        FfiConverterTypeKeyPair.lower(`walletKeypair`),
+        FfiConverterTypeKeyPair.lower(`authKeypair`),$0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_ee8f_Auth_object_free(pointer, $0) }
+        try! rustCall { uniffi_lipabusinesslib_fn_free_auth(pointer, $0) }
     }
 
     
 
     
+    
+
     public func `queryToken`() throws -> String {
-        return try FfiConverterString.lift(
-            try
-    rustCallWithError(FfiConverterTypeAuthError.self) {
-    lipabusinesslib_ee8f_Auth_query_token(self.pointer, $0
+        return try  FfiConverterString.lift(
+            try 
+    rustCallWithError(FfiConverterTypeAuthError.lift) {
+    uniffi_lipabusinesslib_fn_method_auth_query_token(self.pointer, $0
     )
 }
         )
     }
+
     public func `getWalletPubkeyId`()  -> String? {
-        return try! FfiConverterOptionString.lift(
-            try!
+        return try!  FfiConverterOptionString.lift(
+            try! 
     rustCall() {
     
-    lipabusinesslib_ee8f_Auth_get_wallet_pubkey_id(self.pointer, $0
+    uniffi_lipabusinesslib_fn_method_auth_get_wallet_pubkey_id(self.pointer, $0
     )
 }
         )
     }
-    
 }
-
 
 public struct FfiConverterTypeAuth: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
@@ -503,16 +516,25 @@ public struct FfiConverterTypeAuth: FfiConverter {
 }
 
 
+public func FfiConverterTypeAuth_lift(_ pointer: UnsafeMutableRawPointer) throws -> Auth {
+    return try FfiConverterTypeAuth.lift(pointer)
+}
+
+public func FfiConverterTypeAuth_lower(_ value: Auth) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeAuth.lower(value)
+}
+
+
 public protocol WalletProtocol {
-    func `sync`() throws
-    func `getBalance`() throws -> Balance
-    func `getAddr`() throws -> String
-    func `parseAddress`(`address`: String) throws -> String
-    func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32) throws -> Tx
-    func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws -> TxDetails
-    func `getTxStatus`(`txid`: String) throws -> TxStatus
-    func `getSpendingTxs`() throws -> [TxDetails]
-    func `isDrainTxAffordable`(`confirmInBlocks`: UInt32) throws -> Bool
+    func `sync`()  throws
+    func `getBalance`()  throws -> Balance
+    func `getAddr`()  throws -> String
+    func `parseAddress`(`address`: String)  throws -> String
+    func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32)  throws -> Tx
+    func `signAndBroadcastTx`(`txBlob`: Data, `spendDescriptor`: String)  throws -> TxDetails
+    func `getTxStatus`(`txid`: String)  throws -> TxStatus
+    func `getSpendingTxs`()  throws -> [TxDetails]
+    func `isDrainTxAffordable`(`confirmInBlocks`: UInt32)  throws -> Bool
     
 }
 
@@ -526,111 +548,116 @@ public class Wallet: WalletProtocol {
         self.pointer = pointer
     }
     public convenience init(`config`: Config) throws {
-        self.init(unsafeFromRawPointer: try
-    
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    
-    lipabusinesslib_ee8f_Wallet_new(
-        FfiConverterTypeConfig.lower(`config`), $0)
+        self.init(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_constructor_wallet_new(
+        FfiConverterTypeConfig.lower(`config`),$0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_lipabusinesslib_ee8f_Wallet_object_free(pointer, $0) }
+        try! rustCall { uniffi_lipabusinesslib_fn_free_wallet(pointer, $0) }
     }
 
     
 
     
+    
+
     public func `sync`() throws {
-        try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_sync(self.pointer, $0
+        try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_sync(self.pointer, $0
     )
 }
     }
-    public func `getBalance`() throws -> Balance {
-        return try FfiConverterTypeBalance.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_get_balance(self.pointer, $0
-    )
-}
-        )
-    }
-    public func `getAddr`() throws -> String {
-        return try FfiConverterString.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_get_addr(self.pointer, $0
-    )
-}
-        )
-    }
-    public func `parseAddress`(`address`: String) throws -> String {
-        return try FfiConverterString.lift(
-            try
-    rustCallWithError(FfiConverterTypeAddressParsingError.self) {
-    lipabusinesslib_ee8f_Wallet_parse_address(self.pointer, 
-        FfiConverterString.lower(`address`), $0
-    )
-}
-        )
-    }
-    public func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32) throws -> Tx {
-        return try FfiConverterTypeTx.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_prepare_drain_tx(self.pointer, 
-        FfiConverterString.lower(`addr`), 
-        FfiConverterUInt32.lower(`confirmInBlocks`), $0
-    )
-}
-        )
-    }
-    public func `signAndBroadcastTx`(`txBlob`: [UInt8], `spendDescriptor`: String) throws -> TxDetails {
-        return try FfiConverterTypeTxDetails.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_sign_and_broadcast_tx(self.pointer, 
-        FfiConverterSequenceUInt8.lower(`txBlob`), 
-        FfiConverterString.lower(`spendDescriptor`), $0
-    )
-}
-        )
-    }
-    public func `getTxStatus`(`txid`: String) throws -> TxStatus {
-        return try FfiConverterTypeTxStatus.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_get_tx_status(self.pointer, 
-        FfiConverterString.lower(`txid`), $0
-    )
-}
-        )
-    }
-    public func `getSpendingTxs`() throws -> [TxDetails] {
-        return try FfiConverterSequenceTypeTxDetails.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_get_spending_txs(self.pointer, $0
-    )
-}
-        )
-    }
-    public func `isDrainTxAffordable`(`confirmInBlocks`: UInt32) throws -> Bool {
-        return try FfiConverterBool.lift(
-            try
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    lipabusinesslib_ee8f_Wallet_is_drain_tx_affordable(self.pointer, 
-        FfiConverterUInt32.lower(`confirmInBlocks`), $0
-    )
-}
-        )
-    }
-    
-}
 
+    public func `getBalance`() throws -> Balance {
+        return try  FfiConverterTypeBalance.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_get_balance(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `getAddr`() throws -> String {
+        return try  FfiConverterString.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_get_addr(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `parseAddress`(`address`: String) throws -> String {
+        return try  FfiConverterString.lift(
+            try 
+    rustCallWithError(FfiConverterTypeAddressParsingError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_parse_address(self.pointer, 
+        FfiConverterString.lower(`address`),$0
+    )
+}
+        )
+    }
+
+    public func `prepareDrainTx`(`addr`: String, `confirmInBlocks`: UInt32) throws -> Tx {
+        return try  FfiConverterTypeTx.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_prepare_drain_tx(self.pointer, 
+        FfiConverterString.lower(`addr`),
+        FfiConverterUInt32.lower(`confirmInBlocks`),$0
+    )
+}
+        )
+    }
+
+    public func `signAndBroadcastTx`(`txBlob`: Data, `spendDescriptor`: String) throws -> TxDetails {
+        return try  FfiConverterTypeTxDetails.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_sign_and_broadcast_tx(self.pointer, 
+        FfiConverterData.lower(`txBlob`),
+        FfiConverterString.lower(`spendDescriptor`),$0
+    )
+}
+        )
+    }
+
+    public func `getTxStatus`(`txid`: String) throws -> TxStatus {
+        return try  FfiConverterTypeTxStatus.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_get_tx_status(self.pointer, 
+        FfiConverterString.lower(`txid`),$0
+    )
+}
+        )
+    }
+
+    public func `getSpendingTxs`() throws -> [TxDetails] {
+        return try  FfiConverterSequenceTypeTxDetails.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_get_spending_txs(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `isDrainTxAffordable`(`confirmInBlocks`: UInt32) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_method_wallet_is_drain_tx_affordable(self.pointer, 
+        FfiConverterUInt32.lower(`confirmInBlocks`),$0
+    )
+}
+        )
+    }
+}
 
 public struct FfiConverterTypeWallet: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
@@ -660,6 +687,15 @@ public struct FfiConverterTypeWallet: FfiConverter {
     public static func lower(_ value: Wallet) -> UnsafeMutableRawPointer {
         return value.pointer
     }
+}
+
+
+public func FfiConverterTypeWallet_lift(_ pointer: UnsafeMutableRawPointer) throws -> Wallet {
+    return try FfiConverterTypeWallet.lift(pointer)
+}
+
+public func FfiConverterTypeWallet_lower(_ value: Wallet) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeWallet.lower(value)
 }
 
 
@@ -917,13 +953,13 @@ public func FfiConverterTypeKeyPair_lower(_ value: KeyPair) -> RustBuffer {
 
 public struct Tx {
     public var `id`: String
-    public var `blob`: [UInt8]
+    public var `blob`: Data
     public var `onChainFeeSat`: UInt64
     public var `outputSat`: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`id`: String, `blob`: [UInt8], `onChainFeeSat`: UInt64, `outputSat`: UInt64) {
+    public init(`id`: String, `blob`: Data, `onChainFeeSat`: UInt64, `outputSat`: UInt64) {
         self.`id` = `id`
         self.`blob` = `blob`
         self.`onChainFeeSat` = `onChainFeeSat`
@@ -962,7 +998,7 @@ public struct FfiConverterTypeTx: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Tx {
         return try Tx(
             `id`: FfiConverterString.read(from: &buf), 
-            `blob`: FfiConverterSequenceUInt8.read(from: &buf), 
+            `blob`: FfiConverterData.read(from: &buf), 
             `onChainFeeSat`: FfiConverterUInt64.read(from: &buf), 
             `outputSat`: FfiConverterUInt64.read(from: &buf)
         )
@@ -970,7 +1006,7 @@ public struct FfiConverterTypeTx: FfiConverterRustBuffer {
 
     public static func write(_ value: Tx, into buf: inout [UInt8]) {
         FfiConverterString.write(value.`id`, into: &buf)
-        FfiConverterSequenceUInt8.write(value.`blob`, into: &buf)
+        FfiConverterData.write(value.`blob`, into: &buf)
         FfiConverterUInt64.write(value.`onChainFeeSat`, into: &buf)
         FfiConverterUInt64.write(value.`outputSat`, into: &buf)
     }
@@ -1119,6 +1155,134 @@ public func FfiConverterTypeWalletKeys_lower(_ value: WalletKeys) -> RustBuffer 
     return FfiConverterTypeWalletKeys.lower(value)
 }
 
+public enum AddressParsingError {
+
+    
+    
+    case InvalidNetwork(`expected`: Network, `address`: Network)
+    case Other
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeAddressParsingError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeAddressParsingError: FfiConverterRustBuffer {
+    typealias SwiftType = AddressParsingError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AddressParsingError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .InvalidNetwork(
+            `expected`: try FfiConverterTypeNetwork.read(from: &buf), 
+            `address`: try FfiConverterTypeNetwork.read(from: &buf)
+            )
+        case 2: return .Other
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AddressParsingError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .InvalidNetwork(`expected`,`address`):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeNetwork.write(`expected`, into: &buf)
+            FfiConverterTypeNetwork.write(`address`, into: &buf)
+            
+        
+        case .Other:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+extension AddressParsingError: Equatable, Hashable {}
+
+extension AddressParsingError: Error { }
+
+public enum AuthError {
+
+    
+    
+    case InvalidInput(`msg`: String)
+    case RuntimeError(`code`: AuthRuntimeErrorCode, `msg`: String)
+    case PermanentFailure(`msg`: String)
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeAuthError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeAuthError: FfiConverterRustBuffer {
+    typealias SwiftType = AuthError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AuthError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .InvalidInput(
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .RuntimeError(
+            `code`: try FfiConverterTypeAuthRuntimeErrorCode.read(from: &buf), 
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .PermanentFailure(
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AuthError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .InvalidInput(`msg`):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        
+        case let .RuntimeError(`code`,`msg`):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeAuthRuntimeErrorCode.write(`code`, into: &buf)
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        
+        case let .PermanentFailure(`msg`):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        }
+    }
+}
+
+
+extension AuthError: Equatable, Hashable {}
+
+extension AuthError: Error { }
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum AuthLevel {
@@ -1177,6 +1341,7 @@ public func FfiConverterTypeAuthLevel_lower(_ value: AuthLevel) -> RustBuffer {
 extension AuthLevel: Equatable, Hashable {}
 
 
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum AuthRuntimeErrorCode {
@@ -1184,6 +1349,7 @@ public enum AuthRuntimeErrorCode {
     case `authServiceError`
     case `accessExpired`
     case `networkError`
+    case `remoteServiceUnavailable`
     case `genericError`
     case `corruptData`
     case `objectNotFound`
@@ -1202,11 +1368,13 @@ public struct FfiConverterTypeAuthRuntimeErrorCode: FfiConverterRustBuffer {
         
         case 3: return .`networkError`
         
-        case 4: return .`genericError`
+        case 4: return .`remoteServiceUnavailable`
         
-        case 5: return .`corruptData`
+        case 5: return .`genericError`
         
-        case 6: return .`objectNotFound`
+        case 6: return .`corruptData`
+        
+        case 7: return .`objectNotFound`
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1228,16 +1396,20 @@ public struct FfiConverterTypeAuthRuntimeErrorCode: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case .`genericError`:
+        case .`remoteServiceUnavailable`:
             writeInt(&buf, Int32(4))
         
         
-        case .`corruptData`:
+        case .`genericError`:
             writeInt(&buf, Int32(5))
         
         
-        case .`objectNotFound`:
+        case .`corruptData`:
             writeInt(&buf, Int32(6))
+        
+        
+        case .`objectNotFound`:
+            writeInt(&buf, Int32(7))
         
         }
     }
@@ -1254,6 +1426,7 @@ public func FfiConverterTypeAuthRuntimeErrorCode_lower(_ value: AuthRuntimeError
 
 
 extension AuthRuntimeErrorCode: Equatable, Hashable {}
+
 
 
 // Note that we don't yet support `indirect` for enums.
@@ -1328,6 +1501,7 @@ public func FfiConverterTypeLogLevel_lower(_ value: LogLevel) -> RustBuffer {
 extension LogLevel: Equatable, Hashable {}
 
 
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum Network {
@@ -1393,6 +1567,7 @@ public func FfiConverterTypeNetwork_lower(_ value: Network) -> RustBuffer {
 extension Network: Equatable, Hashable {}
 
 
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum TxStatus {
@@ -1455,6 +1630,77 @@ public func FfiConverterTypeTxStatus_lower(_ value: TxStatus) -> RustBuffer {
 
 extension TxStatus: Equatable, Hashable {}
 
+
+
+public enum WalletError {
+
+    
+    
+    case InvalidInput(`msg`: String)
+    case RuntimeError(`code`: WalletRuntimeErrorCode, `msg`: String)
+    case PermanentFailure(`msg`: String)
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeWalletError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeWalletError: FfiConverterRustBuffer {
+    typealias SwiftType = WalletError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WalletError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .InvalidInput(
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .RuntimeError(
+            `code`: try FfiConverterTypeWalletRuntimeErrorCode.read(from: &buf), 
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .PermanentFailure(
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: WalletError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .InvalidInput(`msg`):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        
+        case let .RuntimeError(`code`,`msg`):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeWalletRuntimeErrorCode.write(`code`, into: &buf)
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        
+        case let .PermanentFailure(`msg`):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        }
+    }
+}
+
+
+extension WalletError: Equatable, Hashable {}
+
+extension WalletError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -1529,191 +1775,6 @@ extension WalletRuntimeErrorCode: Equatable, Hashable {}
 
 
 
-public enum AddressParsingError {
-
-    
-    
-    case InvalidNetwork(`expected`: Network, `address`: Network)
-    case Other
-}
-
-public struct FfiConverterTypeAddressParsingError: FfiConverterRustBuffer {
-    typealias SwiftType = AddressParsingError
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AddressParsingError {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        
-
-        
-        case 1: return .InvalidNetwork(
-            `expected`: try FfiConverterTypeNetwork.read(from: &buf), 
-            `address`: try FfiConverterTypeNetwork.read(from: &buf)
-            )
-        case 2: return .Other
-
-         default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: AddressParsingError, into buf: inout [UInt8]) {
-        switch value {
-
-        
-
-        
-        
-        case let .InvalidNetwork(`expected`,`address`):
-            writeInt(&buf, Int32(1))
-            FfiConverterTypeNetwork.write(`expected`, into: &buf)
-            FfiConverterTypeNetwork.write(`address`, into: &buf)
-            
-        
-        case .Other:
-            writeInt(&buf, Int32(2))
-        
-        }
-    }
-}
-
-
-extension AddressParsingError: Equatable, Hashable {}
-
-extension AddressParsingError: Error { }
-
-
-public enum AuthError {
-
-    
-    
-    case InvalidInput(`msg`: String)
-    case RuntimeError(`code`: AuthRuntimeErrorCode, `msg`: String)
-    case PermanentFailure(`msg`: String)
-}
-
-public struct FfiConverterTypeAuthError: FfiConverterRustBuffer {
-    typealias SwiftType = AuthError
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AuthError {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        
-
-        
-        case 1: return .InvalidInput(
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-        case 2: return .RuntimeError(
-            `code`: try FfiConverterTypeAuthRuntimeErrorCode.read(from: &buf), 
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-        case 3: return .PermanentFailure(
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-
-         default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: AuthError, into buf: inout [UInt8]) {
-        switch value {
-
-        
-
-        
-        
-        case let .InvalidInput(`msg`):
-            writeInt(&buf, Int32(1))
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        
-        case let .RuntimeError(`code`,`msg`):
-            writeInt(&buf, Int32(2))
-            FfiConverterTypeAuthRuntimeErrorCode.write(`code`, into: &buf)
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        
-        case let .PermanentFailure(`msg`):
-            writeInt(&buf, Int32(3))
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        }
-    }
-}
-
-
-extension AuthError: Equatable, Hashable {}
-
-extension AuthError: Error { }
-
-
-public enum WalletError {
-
-    
-    
-    case InvalidInput(`msg`: String)
-    case RuntimeError(`code`: WalletRuntimeErrorCode, `msg`: String)
-    case PermanentFailure(`msg`: String)
-}
-
-public struct FfiConverterTypeWalletError: FfiConverterRustBuffer {
-    typealias SwiftType = WalletError
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WalletError {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        
-
-        
-        case 1: return .InvalidInput(
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-        case 2: return .RuntimeError(
-            `code`: try FfiConverterTypeWalletRuntimeErrorCode.read(from: &buf), 
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-        case 3: return .PermanentFailure(
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-
-         default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: WalletError, into buf: inout [UInt8]) {
-        switch value {
-
-        
-
-        
-        
-        case let .InvalidInput(`msg`):
-            writeInt(&buf, Int32(1))
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        
-        case let .RuntimeError(`code`,`msg`):
-            writeInt(&buf, Int32(2))
-            FfiConverterTypeWalletRuntimeErrorCode.write(`code`, into: &buf)
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        
-        case let .PermanentFailure(`msg`):
-            writeInt(&buf, Int32(3))
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        }
-    }
-}
-
-
-extension WalletError: Equatable, Hashable {}
-
-extension WalletError: Error { }
-
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -1732,28 +1793,6 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         case 1: return try FfiConverterString.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
-    }
-}
-
-fileprivate struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
-    typealias SwiftType = [UInt8]
-
-    public static func write(_ value: [UInt8], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterUInt8.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt8] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [UInt8]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterUInt8.read(from: &buf))
-        }
-        return seq
     }
 }
 
@@ -1802,95 +1841,142 @@ fileprivate struct FfiConverterSequenceTypeTxDetails: FfiConverterRustBuffer {
 }
 
 public func `initNativeLoggerOnce`(`minLevel`: LogLevel)  {
-    try!
-    
-    rustCall() {
-    
-    lipabusinesslib_ee8f_init_native_logger_once(
-        FfiConverterTypeLogLevel.lower(`minLevel`), $0)
+    try! rustCall() {
+    uniffi_lipabusinesslib_fn_func_init_native_logger_once(
+        FfiConverterTypeLogLevel.lower(`minLevel`),$0)
 }
 }
+
 
 
 public func `generateMnemonic`() throws -> [String] {
-    return try FfiConverterSequenceString.lift(
-        try
-    
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    
-    lipabusinesslib_ee8f_generate_mnemonic($0)
+    return try  FfiConverterSequenceString.lift(
+        try rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_func_generate_mnemonic($0)
 }
     )
 }
-
-
 
 public func `deriveKeys`(`network`: Network, `mnemonicString`: [String]) throws -> WalletKeys {
-    return try FfiConverterTypeWalletKeys.lift(
-        try
-    
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    
-    lipabusinesslib_ee8f_derive_keys(
-        FfiConverterTypeNetwork.lower(`network`), 
-        FfiConverterSequenceString.lower(`mnemonicString`), $0)
+    return try  FfiConverterTypeWalletKeys.lift(
+        try rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_func_derive_keys(
+        FfiConverterTypeNetwork.lower(`network`),
+        FfiConverterSequenceString.lower(`mnemonicString`),$0)
 }
     )
 }
-
-
 
 public func `sign`(`message`: String, `privateKey`: String) throws -> String {
-    return try FfiConverterString.lift(
-        try
-    
-    rustCallWithError(FfiConverterTypeWalletError.self) {
-    
-    lipabusinesslib_ee8f_sign(
-        FfiConverterString.lower(`message`), 
-        FfiConverterString.lower(`privateKey`), $0)
+    return try  FfiConverterString.lift(
+        try rustCallWithError(FfiConverterTypeWalletError.lift) {
+    uniffi_lipabusinesslib_fn_func_sign(
+        FfiConverterString.lower(`message`),
+        FfiConverterString.lower(`privateKey`),$0)
 }
     )
 }
-
-
 
 public func `generateKeypair`()  -> KeyPair {
-    return try! FfiConverterTypeKeyPair.lift(
-        try!
-    
-    rustCall() {
-    
-    lipabusinesslib_ee8f_generate_keypair($0)
+    return try!  FfiConverterTypeKeyPair.lift(
+        try! rustCall() {
+    uniffi_lipabusinesslib_fn_func_generate_keypair($0)
 }
     )
 }
-
-
 
 public func `wordsByPrefix`(`prefix`: String)  -> [String] {
-    return try! FfiConverterSequenceString.lift(
-        try!
-    
-    rustCall() {
-    
-    lipabusinesslib_ee8f_words_by_prefix(
-        FfiConverterString.lower(`prefix`), $0)
+    return try!  FfiConverterSequenceString.lift(
+        try! rustCall() {
+    uniffi_lipabusinesslib_fn_func_words_by_prefix(
+        FfiConverterString.lower(`prefix`),$0)
 }
     )
 }
 
+private enum InitializationResult {
+    case ok
+    case contractVersionMismatch
+    case apiChecksumMismatch
+}
+// Use a global variables to perform the versioning checks. Swift ensures that
+// the code inside is only computed once.
+private var initializationResult: InitializationResult {
+    // Get the bindings contract version from our ComponentInterface
+    let bindings_contract_version = 22
+    // Get the scaffolding contract version by calling the into the dylib
+    let scaffolding_contract_version = ffi_lipabusinesslib_uniffi_contract_version()
+    if bindings_contract_version != scaffolding_contract_version {
+        return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_lipabusinesslib_checksum_func_init_native_logger_once() != 53918) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_lipabusinesslib_checksum_func_generate_mnemonic() != 53485) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_lipabusinesslib_checksum_func_derive_keys() != 44497) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_lipabusinesslib_checksum_func_sign() != 12111) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_lipabusinesslib_checksum_func_generate_keypair() != 60919) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_lipabusinesslib_checksum_func_words_by_prefix() != 35266) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_sync() != 26360) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_get_balance() != 52479) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_get_addr() != 58380) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_parse_address() != 62227) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_prepare_drain_tx() != 62005) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_sign_and_broadcast_tx() != 15725) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_get_tx_status() != 55239) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_get_spending_txs() != 57402) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_wallet_is_drain_tx_affordable() != 35240) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_auth_query_token() != 33853) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_method_auth_get_wallet_pubkey_id() != 10146) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_constructor_wallet_new() != 19579) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi__checksum_constructor_auth_new() != 36882) {
+        return InitializationResult.apiChecksumMismatch
+    }
 
+    return InitializationResult.ok
+}
 
-/**
- * Top level initializers and tear down methods.
- *
- * This is generated by uniffi.
- */
-public enum LipabusinesslibLifecycle {
-    /**
-     * Initialize the FFI and Rust library. This should be only called once per application.
-     */
-    func initialize() {
+private func uniffiEnsureInitialized() {
+    switch initializationResult {
+    case .ok:
+        break
+    case .contractVersionMismatch:
+        fatalError("UniFFI contract version mismatch: try cleaning and rebuilding your project")
+    case .apiChecksumMismatch:
+        fatalError("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
